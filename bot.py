@@ -52,13 +52,16 @@ def remove_coins(data, user_id, amount):
 
 OWNER = ["Owner"]
 CO_OWNER = ["Owner", "Co Owner"]
-MANAGER = ["Owner", "Co Owner", "Head Manager", "Manager"]
-ADMIN = ["Owner", "Co Owner", "Head Manager", "Manager", "Head Admin", "Admin"]
+MANAGER = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager", "Head Manager", "Senior Manager", "Manager", "Trial Manager"]
+ADMIN = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager", "Head Manager", "Senior Manager", "Manager", "Trial Manager", "Chief Admin", "Head Admin", "Senior Admin", "Admin", "Trial Admin"]
 
 ROLE_HIERARCHY = [
-    "Community Member", "Staff Team", "Trial Moderator", "Support Team",
-    "Head Of Support", "Middle Man", "Moderator", "Head Moderator",
-    "Admin", "Head Admin", "Manager", "Head Manager", "Co Owner", "Owner"
+    "Community Member", "Trial Staff", "Staff Team", "Trial Support",
+    "Support Team", "Head Of Support", "Chief Of Support", "Trial Moderator",
+    "Moderator", "Senior Moderator", "Head Moderator", "Chief Moderator",
+    "Trial Admin", "Admin", "Senior Admin", "Head Admin", "Chief Admin",
+    "Trial Manager", "Manager", "Senior Manager", "Head Manager", "Chief Manager",
+    "Trial Co Owner", "Co Owner", "Owner"
 ]
 
 SHOP_ITEMS = [
@@ -120,12 +123,20 @@ async def kick(interaction: discord.Interaction, member: discord.Member, reason:
     if member.top_role >= interaction.user.top_role:
         await interaction.response.send_message("❌ You can't kick someone with a higher or equal role!", ephemeral=True)
         return
+    dm_embed = discord.Embed(title="👢 You have been kicked", color=discord.Color.red())
+    dm_embed.add_field(name="Server", value=interaction.guild.name, inline=False)
+    dm_embed.add_field(name="Reason", value=reason, inline=False)
+    dm_embed.add_field(name="Moderator", value=str(interaction.user), inline=False)
     try:
-        await member.send(f"⚠️ **You have been kicked from {interaction.guild.name}**\n**Reason:** {reason}\n**Moderator:** {interaction.user}")
+        await member.send(embed=dm_embed)
     except:
         pass
     await member.kick(reason=reason)
-    await interaction.response.send_message(f"✅ {member.mention} has been kicked. Reason: {reason}")
+    embed = discord.Embed(title="👢 Member Kicked", color=discord.Color.red())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    embed.add_field(name="Reason", value=reason, inline=False)
+    embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="ban", description="Ban a member")
 async def ban(interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
@@ -135,12 +146,20 @@ async def ban(interaction: discord.Interaction, member: discord.Member, reason: 
     if member.top_role >= interaction.user.top_role:
         await interaction.response.send_message("❌ You can't ban someone with a higher or equal role!", ephemeral=True)
         return
+    dm_embed = discord.Embed(title="🔨 You have been banned", color=discord.Color.dark_red())
+    dm_embed.add_field(name="Server", value=interaction.guild.name, inline=False)
+    dm_embed.add_field(name="Reason", value=reason, inline=False)
+    dm_embed.add_field(name="Moderator", value=str(interaction.user), inline=False)
     try:
-        await member.send(f"🔨 **You have been banned from {interaction.guild.name}**\n**Reason:** {reason}\n**Moderator:** {interaction.user}")
+        await member.send(embed=dm_embed)
     except:
         pass
     await member.ban(reason=reason)
-    await interaction.response.send_message(f"✅ {member.mention} has been banned. Reason: {reason}")
+    embed = discord.Embed(title="🔨 Member Banned", color=discord.Color.dark_red())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    embed.add_field(name="Reason", value=reason, inline=False)
+    embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="unban", description="Unban a user by ID")
 async def unban(interaction: discord.Interaction, user_id: str):
@@ -149,20 +168,30 @@ async def unban(interaction: discord.Interaction, user_id: str):
         return
     user = await client.fetch_user(int(user_id))
     await interaction.guild.unban(user)
-    await interaction.response.send_message(f"✅ {user} has been unbanned!")
+    embed = discord.Embed(title="✅ Member Unbanned", color=discord.Color.green())
+    embed.add_field(name="User", value=str(user), inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="mute", description="Mute a member")
 async def mute(interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
     if not has_role(interaction, ADMIN):
         await interaction.response.send_message("❌ You don't have permission!", ephemeral=True)
         return
+    dm_embed = discord.Embed(title="🔇 You have been muted", color=discord.Color.orange())
+    dm_embed.add_field(name="Server", value=interaction.guild.name, inline=False)
+    dm_embed.add_field(name="Reason", value=reason, inline=False)
+    dm_embed.add_field(name="Moderator", value=str(interaction.user), inline=False)
     try:
-        await member.send(f"🔇 **You have been muted in {interaction.guild.name}**\n**Reason:** {reason}\n**Moderator:** {interaction.user}")
+        await member.send(embed=dm_embed)
     except:
         pass
     role = discord.utils.get(interaction.guild.roles, name="Muted")
     await member.add_roles(role)
-    await interaction.response.send_message(f"✅ {member.mention} has been muted. Reason: {reason}")
+    embed = discord.Embed(title="🔇 Member Muted", color=discord.Color.orange())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    embed.add_field(name="Reason", value=reason, inline=False)
+    embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="unmute", description="Unmute a member")
 async def unmute(interaction: discord.Interaction, member: discord.Member):
@@ -171,7 +200,9 @@ async def unmute(interaction: discord.Interaction, member: discord.Member):
         return
     role = discord.utils.get(interaction.guild.roles, name="Muted")
     await member.remove_roles(role)
-    await interaction.response.send_message(f"✅ {member.mention} has been unmuted!")
+    embed = discord.Embed(title="🔊 Member Unmuted", color=discord.Color.green())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="warn", description="Warn a member")
 async def warn(interaction: discord.Interaction, member: discord.Member, reason: str):
@@ -186,11 +217,22 @@ async def warn(interaction: discord.Interaction, member: discord.Member, reason:
         data["warns"][user_id] = []
     data["warns"][user_id].append(reason)
     save_data(data)
+    total = len(data["warns"][user_id])
+    dm_embed = discord.Embed(title="⚠️ You have been warned", color=discord.Color.yellow())
+    dm_embed.add_field(name="Server", value=interaction.guild.name, inline=False)
+    dm_embed.add_field(name="Reason", value=reason, inline=False)
+    dm_embed.add_field(name="Moderator", value=str(interaction.user), inline=False)
+    dm_embed.add_field(name="Total Warnings", value=str(total), inline=False)
     try:
-        await member.send(f"⚠️ **You have been warned in {interaction.guild.name}**\n**Reason:** {reason}\n**Moderator:** {interaction.user}")
+        await member.send(embed=dm_embed)
     except:
         pass
-    await interaction.response.send_message(f"⚠️ {member.mention} has been warned. Reason: {reason}")
+    embed = discord.Embed(title="⚠️ Member Warned", color=discord.Color.yellow())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    embed.add_field(name="Reason", value=reason, inline=False)
+    embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
+    embed.add_field(name="Total Warnings", value=str(total), inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="unwarn", description="Remove last warn from a member")
 async def unwarn(interaction: discord.Interaction, member: discord.Member):
@@ -204,7 +246,9 @@ async def unwarn(interaction: discord.Interaction, member: discord.Member):
         return
     data["warns"][user_id].pop()
     save_data(data)
-    await interaction.response.send_message(f"✅ Removed last warning from {member.mention}!")
+    embed = discord.Embed(title="✅ Warning Removed", color=discord.Color.green())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="clearwarns", description="Clear all warns from a member")
 async def clearwarns(interaction: discord.Interaction, member: discord.Member):
@@ -216,7 +260,9 @@ async def clearwarns(interaction: discord.Interaction, member: discord.Member):
     if "warns" in data and user_id in data["warns"]:
         data["warns"][user_id] = []
         save_data(data)
-    await interaction.response.send_message(f"✅ Cleared all warnings from {member.mention}!")
+    embed = discord.Embed(title="✅ Warnings Cleared", color=discord.Color.green())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="lock", description="Lock a channel")
 async def lock(interaction: discord.Interaction, channel: discord.TextChannel = None):
@@ -225,7 +271,9 @@ async def lock(interaction: discord.Interaction, channel: discord.TextChannel = 
         return
     channel = channel or interaction.channel
     await channel.set_permissions(interaction.guild.default_role, send_messages=False)
-    await interaction.response.send_message(f"🔒 {channel.mention} has been locked!")
+    embed = discord.Embed(title="🔒 Channel Locked", color=discord.Color.red())
+    embed.add_field(name="Channel", value=channel.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="unlock", description="Unlock a channel")
 async def unlock(interaction: discord.Interaction, channel: discord.TextChannel = None):
@@ -234,7 +282,9 @@ async def unlock(interaction: discord.Interaction, channel: discord.TextChannel 
         return
     channel = channel or interaction.channel
     await channel.set_permissions(interaction.guild.default_role, send_messages=True)
-    await interaction.response.send_message(f"🔓 {channel.mention} has been unlocked!")
+    embed = discord.Embed(title="🔓 Channel Unlocked", color=discord.Color.green())
+    embed.add_field(name="Channel", value=channel.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="lockall", description="Lock all channels")
 async def lockall(interaction: discord.Interaction):
@@ -243,7 +293,8 @@ async def lockall(interaction: discord.Interaction):
         return
     for channel in interaction.guild.text_channels:
         await channel.set_permissions(interaction.guild.default_role, send_messages=False)
-    await interaction.response.send_message("🔒 All channels have been locked!")
+    embed = discord.Embed(title="🔒 All Channels Locked", color=discord.Color.red())
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="unlockall", description="Unlock all channels")
 async def unlockall(interaction: discord.Interaction):
@@ -252,7 +303,8 @@ async def unlockall(interaction: discord.Interaction):
         return
     for channel in interaction.guild.text_channels:
         await channel.set_permissions(interaction.guild.default_role, send_messages=True)
-    await interaction.response.send_message("🔓 All channels have been unlocked!")
+    embed = discord.Embed(title="🔓 All Channels Unlocked", color=discord.Color.green())
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="slowmode", description="Set slowmode for a channel")
 async def slowmode(interaction: discord.Interaction, seconds: int, channel: discord.TextChannel = None):
@@ -261,7 +313,10 @@ async def slowmode(interaction: discord.Interaction, seconds: int, channel: disc
         return
     channel = channel or interaction.channel
     await channel.edit(slowmode_delay=seconds)
-    await interaction.response.send_message(f"✅ Slowmode set to {seconds} seconds in {channel.mention}!")
+    embed = discord.Embed(title="⏱️ Slowmode Set", color=discord.Color.blue())
+    embed.add_field(name="Channel", value=channel.mention, inline=False)
+    embed.add_field(name="Slowmode", value=f"{seconds} seconds", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="changenickname", description="Change a member's nickname")
 async def changenickname(interaction: discord.Interaction, member: discord.Member, nickname: str):
@@ -269,7 +324,10 @@ async def changenickname(interaction: discord.Interaction, member: discord.Membe
         await interaction.response.send_message("❌ You don't have permission!", ephemeral=True)
         return
     await member.edit(nick=nickname)
-    await interaction.response.send_message(f"✅ Changed {member.mention}'s nickname to {nickname}!")
+    embed = discord.Embed(title="✏️ Nickname Changed", color=discord.Color.blue())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    embed.add_field(name="New Nickname", value=nickname, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="setlogchannel", description="Set the log channel")
 async def setlogchannel(interaction: discord.Interaction, channel: discord.TextChannel):
@@ -279,7 +337,9 @@ async def setlogchannel(interaction: discord.Interaction, channel: discord.TextC
     data = load_data()
     data["log_channel"] = channel.id
     save_data(data)
-    await interaction.response.send_message(f"✅ Log channel set to {channel.mention}!")
+    embed = discord.Embed(title="📋 Log Channel Set", color=discord.Color.blue())
+    embed.add_field(name="Channel", value=channel.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="grantaccess", description="Grant tester access to a user")
 async def grantaccess(interaction: discord.Interaction, member: discord.Member):
@@ -288,7 +348,9 @@ async def grantaccess(interaction: discord.Interaction, member: discord.Member):
         return
     role = discord.utils.get(interaction.guild.roles, name="Tester")
     await member.add_roles(role)
-    await interaction.response.send_message(f"✅ Granted tester access to {member.mention}!")
+    embed = discord.Embed(title="✅ Tester Access Granted", color=discord.Color.green())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="revokeaccess", description="Revoke tester access from a user")
 async def revokeaccess(interaction: discord.Interaction, member: discord.Member):
@@ -297,7 +359,9 @@ async def revokeaccess(interaction: discord.Interaction, member: discord.Member)
         return
     role = discord.utils.get(interaction.guild.roles, name="Tester")
     await member.remove_roles(role)
-    await interaction.response.send_message(f"✅ Revoked tester access from {member.mention}!")
+    embed = discord.Embed(title="❌ Tester Access Revoked", color=discord.Color.red())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="promote", description="Promote a member to the next role")
 async def promote(interaction: discord.Interaction, member: discord.Member):
@@ -318,7 +382,10 @@ async def promote(interaction: discord.Interaction, member: discord.Member):
     if next_role and current_role:
         await member.remove_roles(current_role)
         await member.add_roles(next_role)
-        await interaction.response.send_message(f"✅ {member.mention} has been promoted to **{next_role_name}**!")
+        embed = discord.Embed(title="⬆️ Member Promoted", color=discord.Color.green())
+        embed.add_field(name="Member", value=member.mention, inline=False)
+        embed.add_field(name="New Role", value=next_role_name, inline=False)
+        await interaction.response.send_message(embed=embed)
     else:
         await interaction.response.send_message("❌ Role not found!", ephemeral=True)
 
@@ -341,7 +408,10 @@ async def demote(interaction: discord.Interaction, member: discord.Member):
     if prev_role and current_role:
         await member.remove_roles(current_role)
         await member.add_roles(prev_role)
-        await interaction.response.send_message(f"✅ {member.mention} has been demoted to **{prev_role_name}**!")
+        embed = discord.Embed(title="⬇️ Member Demoted", color=discord.Color.red())
+        embed.add_field(name="Member", value=member.mention, inline=False)
+        embed.add_field(name="New Role", value=prev_role_name, inline=False)
+        await interaction.response.send_message(embed=embed)
     else:
         await interaction.response.send_message("❌ Role not found!", ephemeral=True)
 
@@ -364,7 +434,10 @@ async def givecoin(interaction: discord.Interaction, member: discord.Member, amo
     data = load_data()
     add_coins(data, member.id, amount)
     save_data(data)
-    await interaction.response.send_message(f"✅ Gave {amount} 🪙 to {member.mention}!")
+    embed = discord.Embed(title="🪙 Coins Given", color=discord.Color.gold())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    embed.add_field(name="Amount", value=f"{amount} 🪙", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="takecoins", description="Take coins from a member")
 async def takecoins(interaction: discord.Interaction, member: discord.Member, amount: int):
@@ -374,7 +447,10 @@ async def takecoins(interaction: discord.Interaction, member: discord.Member, am
     data = load_data()
     remove_coins(data, member.id, amount)
     save_data(data)
-    await interaction.response.send_message(f"✅ Took {amount} 🪙 from {member.mention}!")
+    embed = discord.Embed(title="🪙 Coins Taken", color=discord.Color.red())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    embed.add_field(name="Amount", value=f"{amount} 🪙", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="clearcoins", description="Clear a member's coins")
 async def clearcoins(interaction: discord.Interaction, member: discord.Member):
@@ -386,7 +462,9 @@ async def clearcoins(interaction: discord.Interaction, member: discord.Member):
     if "economy" in data and user_id in data["economy"]:
         data["economy"][user_id]["coins"] = 0
         save_data(data)
-    await interaction.response.send_message(f"✅ Cleared coins for {member.mention}!")
+    embed = discord.Embed(title="🪙 Coins Cleared", color=discord.Color.red())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="shop", description="View the shop")
 async def shop(interaction: discord.Interaction):
@@ -410,7 +488,10 @@ async def buy(interaction: discord.Interaction, item_id: str):
     user_id = str(interaction.user.id)
     coins = get_balance(data, interaction.user.id)
     if coins < item["price"]:
-        await interaction.response.send_message(f"❌ You don't have enough coins! You need {item['price']} 🪙 but have {coins} 🪙", ephemeral=True)
+        embed = discord.Embed(title="❌ Not Enough Coins", color=discord.Color.red())
+        embed.add_field(name="Required", value=f"{item['price']} 🪙", inline=True)
+        embed.add_field(name="Your Balance", value=f"{coins} 🪙", inline=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     remove_coins(data, interaction.user.id, item["price"])
     if "economy" not in data:
@@ -419,7 +500,10 @@ async def buy(interaction: discord.Interaction, item_id: str):
         data["economy"][user_id] = {"coins": 0, "inventory": []}
     data["economy"][user_id]["inventory"].append(item)
     save_data(data)
-    await interaction.response.send_message(f"✅ You bought **{item['name']}** for {item['price']} 🪙!")
+    embed = discord.Embed(title="✅ Item Purchased!", color=discord.Color.green())
+    embed.add_field(name="Item", value=item["name"], inline=False)
+    embed.add_field(name="Price", value=f"{item['price']} 🪙", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="inventory", description="View your inventory")
 async def inventory(interaction: discord.Interaction, member: discord.Member = None):
@@ -445,7 +529,9 @@ async def clearinventory(interaction: discord.Interaction, member: discord.Membe
     if "economy" in data and user_id in data["economy"]:
         data["economy"][user_id]["inventory"] = []
         save_data(data)
-    await interaction.response.send_message(f"✅ Cleared inventory for {member.mention}!")
+    embed = discord.Embed(title="🎒 Inventory Cleared", color=discord.Color.red())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="coinflip", description="Flip a coin and gamble your coins")
 @app_commands.choices(choice=[
@@ -456,17 +542,28 @@ async def coinflip(interaction: discord.Interaction, amount: int, choice: app_co
     data = load_data()
     coins = get_balance(data, interaction.user.id)
     if coins < amount:
-        await interaction.response.send_message(f"❌ You don't have enough coins! You have {coins} 🪙", ephemeral=True)
+        embed = discord.Embed(title="❌ Not Enough Coins", color=discord.Color.red())
+        embed.add_field(name="Your Balance", value=f"{coins} 🪙", inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     result = random.choice(["heads", "tails"])
     if choice.value == result:
         add_coins(data, interaction.user.id, amount)
         save_data(data)
-        await interaction.response.send_message(f"🪙 The coin landed on **{result}**! You won {amount} 🪙!")
+        new_balance = get_balance(data, interaction.user.id)
+        embed = discord.Embed(title="🪙 You Won!", color=discord.Color.green())
+        embed.add_field(name="Result", value=f"**{result.capitalize()}**", inline=True)
+        embed.add_field(name="Winnings", value=f"+{amount} 🪙", inline=True)
+        embed.add_field(name="New Balance", value=f"{new_balance} 🪙", inline=False)
     else:
         remove_coins(data, interaction.user.id, amount)
         save_data(data)
-        await interaction.response.send_message(f"🪙 The coin landed on **{result}**! You lost {amount} 🪙!")
+        new_balance = get_balance(data, interaction.user.id)
+        embed = discord.Embed(title="🪙 You Lost!", color=discord.Color.red())
+        embed.add_field(name="Result", value=f"**{result.capitalize()}**", inline=True)
+        embed.add_field(name="Lost", value=f"-{amount} 🪙", inline=True)
+        embed.add_field(name="New Balance", value=f"{new_balance} 🪙", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="additem", description="Add an item to the shop")
 async def additem(interaction: discord.Interaction, item_id: str, item_name: str, price: int):
@@ -478,7 +575,10 @@ async def additem(interaction: discord.Interaction, item_id: str, item_name: str
         data["custom_shop_items"] = []
     data["custom_shop_items"].append({"id": item_id, "name": item_name, "price": price})
     save_data(data)
-    await interaction.response.send_message(f"✅ Added **{item_name}** to the shop for {price} 🪙!")
+    embed = discord.Embed(title="✅ Item Added to Shop", color=discord.Color.green())
+    embed.add_field(name="Item", value=item_name, inline=False)
+    embed.add_field(name="Price", value=f"{price} 🪙", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="removeitem", description="Remove an item from the shop")
 async def removeitem(interaction: discord.Interaction, item_id: str):
@@ -491,7 +591,9 @@ async def removeitem(interaction: discord.Interaction, item_id: str):
         return
     data["custom_shop_items"] = [i for i in data["custom_shop_items"] if i["id"] != item_id]
     save_data(data)
-    await interaction.response.send_message(f"✅ Removed item `{item_id}` from the shop!")
+    embed = discord.Embed(title="✅ Item Removed from Shop", color=discord.Color.red())
+    embed.add_field(name="Item ID", value=item_id, inline=False)
+    await interaction.response.send_message(embed=embed)
 
 # ============ CLAIM / TICKETS ============
 
@@ -549,7 +651,11 @@ async def makecode(interaction: discord.Interaction, code: str, coins: int, minu
         "used_by": []
     }
     save_data(data)
-    await interaction.response.send_message(f"✅ Code `{code}` created! Worth {coins} 🪙, expires in {minutes} minutes!")
+    embed = discord.Embed(title="🎟️ Code Created", color=discord.Color.green())
+    embed.add_field(name="Code", value=f"`{code}`", inline=False)
+    embed.add_field(name="Reward", value=f"{coins} 🪙", inline=False)
+    embed.add_field(name="Expires In", value=f"{minutes} minutes", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="usecode", description="Redeem a code for coins")
 async def usecode(interaction: discord.Interaction, code: str):
@@ -569,7 +675,10 @@ async def usecode(interaction: discord.Interaction, code: str):
     code_data["used_by"].append(user_id)
     add_coins(data, interaction.user.id, code_data["coins"])
     save_data(data)
-    await interaction.response.send_message(f"✅ You redeemed code `{code}` for {code_data['coins']} 🪙!")
+    embed = discord.Embed(title="✅ Code Redeemed!", color=discord.Color.green())
+    embed.add_field(name="Code", value=f"`{code}`", inline=False)
+    embed.add_field(name="Reward", value=f"{code_data['coins']} 🪙", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 # ============ VOUCH ============
 
@@ -587,7 +696,11 @@ async def vouch(interaction: discord.Interaction, member: discord.Member):
     data["vouches"][user_id] += 1
     save_data(data)
     total = data["vouches"][user_id]
-    await interaction.response.send_message(f"✅ {interaction.user.mention} vouched for {member.mention}! They now have **{total}** vouches! ⭐")
+    embed = discord.Embed(title="🌟 Vouch", color=discord.Color.gold())
+    embed.add_field(name="Vouched By", value=interaction.user.mention, inline=False)
+    embed.add_field(name="Vouched For", value=member.mention, inline=False)
+    embed.add_field(name="Total Vouches", value=f"{total} 🌟", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 # ============ HELP ============
 
