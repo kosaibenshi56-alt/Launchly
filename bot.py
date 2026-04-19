@@ -120,6 +120,10 @@ async def kick(interaction: discord.Interaction, member: discord.Member, reason:
     if member.top_role >= interaction.user.top_role:
         await interaction.response.send_message("❌ You can't kick someone with a higher or equal role!", ephemeral=True)
         return
+    try:
+        await member.send(f"⚠️ **You have been kicked from {interaction.guild.name}**\n**Reason:** {reason}\n**Moderator:** {interaction.user}")
+    except:
+        pass
     await member.kick(reason=reason)
     await interaction.response.send_message(f"✅ {member.mention} has been kicked. Reason: {reason}")
 
@@ -131,6 +135,10 @@ async def ban(interaction: discord.Interaction, member: discord.Member, reason: 
     if member.top_role >= interaction.user.top_role:
         await interaction.response.send_message("❌ You can't ban someone with a higher or equal role!", ephemeral=True)
         return
+    try:
+        await member.send(f"🔨 **You have been banned from {interaction.guild.name}**\n**Reason:** {reason}\n**Moderator:** {interaction.user}")
+    except:
+        pass
     await member.ban(reason=reason)
     await interaction.response.send_message(f"✅ {member.mention} has been banned. Reason: {reason}")
 
@@ -148,6 +156,10 @@ async def mute(interaction: discord.Interaction, member: discord.Member, reason:
     if not has_role(interaction, ADMIN):
         await interaction.response.send_message("❌ You don't have permission!", ephemeral=True)
         return
+    try:
+        await member.send(f"🔇 **You have been muted in {interaction.guild.name}**\n**Reason:** {reason}\n**Moderator:** {interaction.user}")
+    except:
+        pass
     role = discord.utils.get(interaction.guild.roles, name="Muted")
     await member.add_roles(role)
     await interaction.response.send_message(f"✅ {member.mention} has been muted. Reason: {reason}")
@@ -174,6 +186,10 @@ async def warn(interaction: discord.Interaction, member: discord.Member, reason:
         data["warns"][user_id] = []
     data["warns"][user_id].append(reason)
     save_data(data)
+    try:
+        await member.send(f"⚠️ **You have been warned in {interaction.guild.name}**\n**Reason:** {reason}\n**Moderator:** {interaction.user}")
+    except:
+        pass
     await interaction.response.send_message(f"⚠️ {member.mention} has been warned. Reason: {reason}")
 
 @tree.command(name="unwarn", description="Remove last warn from a member")
