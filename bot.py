@@ -358,12 +358,13 @@ async def slowmode(interaction: discord.Interaction, seconds: int, channel: disc
     if not has_role(interaction, ADMIN):
         await interaction.response.send_message("❌ You don't have permission!", ephemeral=True)
         return
-    channel = channel or interaction.channel
-    await channel.edit(slowmode_delay=seconds)
+    target = channel or interaction.channel
+    await interaction.response.defer()
+    await target.edit(slowmode_delay=seconds)
     embed = discord.Embed(title="⏱️ Slowmode Set", color=discord.Color.blue())
-    embed.add_field(name="Channel", value=channel.mention, inline=False)
+    embed.add_field(name="Channel", value=target.mention, inline=False)
     embed.add_field(name="Slowmode", value=f"{seconds} seconds", inline=False)
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
 
 @tree.command(name="changenickname", description="Change a member's nickname")
 async def changenickname(interaction: discord.Interaction, member: discord.Member, nickname: str):
