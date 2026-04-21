@@ -31,7 +31,7 @@ def get_balance(data, user_id):
     if "economy" not in data:
         data["economy"] = {}
     if user_id not in data["economy"]:
-        data["economy"][user_id] = {"coins": 0, "inventory": []}
+        data["economy"][user_id] = {"coins": 0, "inventory": [], "message_count": 0}
     return data["economy"][user_id]["coins"]
 
 def add_coins(data, user_id, amount):
@@ -39,7 +39,7 @@ def add_coins(data, user_id, amount):
     if "economy" not in data:
         data["economy"] = {}
     if user_id not in data["economy"]:
-        data["economy"][user_id] = {"coins": 0, "inventory": []}
+        data["economy"][user_id] = {"coins": 0, "inventory": [], "message_count": 0}
     data["economy"][user_id]["coins"] += amount
 
 def remove_coins(data, user_id, amount):
@@ -47,11 +47,12 @@ def remove_coins(data, user_id, amount):
     if "economy" not in data:
         data["economy"] = {}
     if user_id not in data["economy"]:
-        data["economy"][user_id] = {"coins": 0, "inventory": []}
+        data["economy"][user_id] = {"coins": 0, "inventory": [], "message_count": 0}
     data["economy"][user_id]["coins"] = max(0, data["economy"][user_id]["coins"] - amount)
 
 OWNER = ["Owner"]
 CO_OWNER = ["Owner", "Co Owner"]
+EMBED_ROLES = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager"]
 MANAGER = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager", "Head Manager", "Senior Manager", "Manager", "Trial Manager"]
 ADMIN = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager", "Head Manager", "Senior Manager", "Manager", "Trial Manager", "Chief Admin", "Head Admin", "Senior Admin", "Admin", "Trial Admin"]
 
@@ -74,6 +75,8 @@ SHOP_ITEMS = [
     {"id": "rare_brainrot", "name": "Rare Brainrot", "price": 4000},
 ]
 
+CLAIMS_CHANNEL = "📂｜𝒄𝒍𝒂𝒊𝒎-𝒓𝒆𝒒𝒖𝒆𝒔𝒕𝒔"
+
 # ============ EVENTS ============
 
 @client.event
@@ -92,7 +95,17 @@ async def on_message(message):
     if message.author.bot:
         return
     data = load_data()
-    add_coins(data, message.author.id, 1)
+    user_id = str(message.author.id)
+    if "economy" not in data:
+        data["economy"] = {}
+    if user_id not in data["economy"]:
+        data["economy"][user_id] = {"coins": 0, "inventory": [], "message_count": 0}
+    if "message_count" not in data["economy"][user_id]:
+        data["economy"][user_id]["message_count"] = 0
+    data["economy"][user_id]["message_count"] += 1
+    if data["economy"][user_id]["message_count"] >= 10:
+        data["economy"][user_id]["coins"] += 1
+        data["economy"][user_id]["message_count"] = 0
     save_data(data)
 
 @client.event
@@ -108,6 +121,40 @@ async def on_member_join(member):
             data["invites"][str(invite.code)] = invite.uses
             break
     save_data(data)
+
+# ============ CLAIM BUTTON ============
+
+class ClaimButton(discord.ui.View):
+    def __init__(self, claimer: discord.Member, item_name: str):
+        super().__init__(timeout=None)
+        self.claimer = claimer
+        self.item_name = item_name
+
+    @discord.ui.button(label="Open Ticket", style=discord.ButtonStyle.green, emoji="🎟️")
+    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not any(role.name in ["Owner", "Co Owner"] for role in interaction.user.roles):
+            await interaction.response.send_message("❌ Only Owners can open tickets!", ephemeral=True)
+            return
+        guild = interaction.guild
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            self.claimer: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+        }
+        for role in guild.roles:
+            if role.name in ["Owner", "Co Owner"]:
+                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        ticket_channel = await guild.create_text_channel(
+            f"claim-{self.claimer.name}",
+            overwrites=overwrites
+        )
+        embed = discord.Embed(title="🎟️ Claim Ticket", color=discord.Color.orange())
+        embed.add_field(name="User", value=self.claimer.mention)
+        embed.add_field(name="Item", value=self.item_name)
+        embed.set_footer(text="An admin will be with you shortly!")
+        await ticket_channel.send(embed=embed)
+        button.disabled = True
+        await interaction.response.edit_message(view=self)
+        await interaction.followup.send(f"✅ Ticket opened! {ticket_channel.mention}", ephemeral=True)
 
 # ============ MODERATION ============
 
@@ -497,7 +544,7 @@ async def buy(interaction: discord.Interaction, item_id: str):
     if "economy" not in data:
         data["economy"] = {}
     if user_id not in data["economy"]:
-        data["economy"][user_id] = {"coins": 0, "inventory": []}
+        data["economy"][user_id] = {"coins": 0, "inventory": [], "message_count": 0}
     data["economy"][user_id]["inventory"].append(item)
     save_data(data)
     embed = discord.Embed(title="✅ Item Purchased!", color=discord.Color.green())
@@ -606,24 +653,17 @@ async def claim(interaction: discord.Interaction, item_index: int):
         await interaction.response.send_message("❌ Invalid item ID!", ephemeral=True)
         return
     item = items[item_index]
-    guild = interaction.guild
-    overwrites = {
-        guild.default_role: discord.PermissionOverwrite(read_messages=False),
-        interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
-    }
-    for role in guild.roles:
-        if role.name in CO_OWNER:
-            overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-    ticket_channel = await guild.create_text_channel(
-        f"claim-{interaction.user.name}",
-        overwrites=overwrites
-    )
-    embed = discord.Embed(title="🎟️ Claim Request", color=discord.Color.orange())
-    embed.add_field(name="User", value=interaction.user.mention)
-    embed.add_field(name="Item", value=item["name"])
-    embed.set_footer(text="An admin will be with you shortly!")
-    await ticket_channel.send(embed=embed)
-    await interaction.response.send_message(f"✅ Ticket created! Go to {ticket_channel.mention}", ephemeral=True)
+    claims_channel = discord.utils.get(interaction.guild.text_channels, name=CLAIMS_CHANNEL)
+    if not claims_channel:
+        await interaction.response.send_message("❌ Claims channel not found! Please create it first.", ephemeral=True)
+        return
+    embed = discord.Embed(title="🎟️ New Claim Request", color=discord.Color.orange())
+    embed.add_field(name="User", value=interaction.user.mention, inline=False)
+    embed.add_field(name="Item", value=item["name"], inline=False)
+    embed.set_footer(text="Click the button below to open a ticket for this claim!")
+    view = ClaimButton(claimer=interaction.user, item_name=item["name"])
+    await claims_channel.send(embed=embed, view=view)
+    await interaction.response.send_message(f"✅ Your claim request has been sent to the staff!", ephemeral=True)
 
 @tree.command(name="close", description="Close a claim ticket")
 async def close(interaction: discord.Interaction):
@@ -702,6 +742,50 @@ async def vouch(interaction: discord.Interaction, member: discord.Member):
     embed.add_field(name="Total Vouches", value=f"{total} 🌟", inline=False)
     await interaction.response.send_message(embed=embed)
 
+# ============ EMBED ============
+
+@tree.command(name="embed", description="Send a custom embed message")
+async def embed_command(interaction: discord.Interaction, color: str, message: str):
+    if not has_role(interaction, EMBED_ROLES):
+        await interaction.response.send_message("❌ You don't have permission!", ephemeral=True)
+        return
+    try:
+        color = color.strip("#")
+        color_int = int(color, 16)
+        embed = discord.Embed(description=message, color=discord.Color(color_int))
+        await interaction.channel.send(embed=embed)
+        await interaction.response.send_message("✅ Embed sent!", ephemeral=True)
+    except:
+        await interaction.response.send_message("❌ Invalid hex color! Example: `FF0000` for red", ephemeral=True)
+
+# ============ HELP COINFLIP ============
+
+@tree.command(name="help-coinflip", description="Learn how to use the coinflip command")
+async def help_coinflip(interaction: discord.Interaction):
+    embed = discord.Embed(title="🪙 Coinflip Guide", color=discord.Color.gold())
+    embed.add_field(
+        name="Step 1 — Place your bet",
+        value="Place the amount of coins from your balance in the command. You can choose how many — no minimum and no maximum!",
+        inline=False
+    )
+    embed.add_field(
+        name="Step 2 — Choose your side",
+        value="Choose the side you want to bet on. There are only two options: **Heads** or **Tails**.",
+        inline=False
+    )
+    embed.add_field(
+        name="Step 3 — See the result",
+        value="After you choose a side press Enter and look at the message the bot sent you.\n\n✅ **You Won!** — The amount you betted will be doubled and added to your balance.\n❌ **You Lost!** — The amount you betted will be removed from your balance.",
+        inline=False
+    )
+    embed.add_field(
+        name="❓ Still confused?",
+        value="Make a support ticket and our staff will help you out!",
+        inline=False
+    )
+    embed.set_footer(text="Launchly Bot 🚀")
+    await interaction.response.send_message(embed=embed)
+
 # ============ HELP ============
 
 @tree.command(name="help", description="Show all available commands")
@@ -711,7 +795,8 @@ async def help(interaction: discord.Interaction):
     embed.add_field(name="🪙 Economy", value="`/balance` `/shop` `/buy` `/inventory` `/coinflip` `/usecode`", inline=False)
     embed.add_field(name="⭐ Social", value="`/vouch`", inline=False)
     embed.add_field(name="🎟️ Tickets", value="`/claim` `/close`", inline=False)
-    embed.add_field(name="👑 Staff Only", value="`/givecoin` `/takecoins` `/clearcoins` `/clearinventory` `/makecode` `/additem` `/removeitem` `/promote` `/demote` `/setlogchannel` `/grantaccess` `/revokeaccess`", inline=False)
+    embed.add_field(name="❓ Help", value="`/help-coinflip`", inline=False)
+    embed.add_field(name="👑 Staff Only", value="`/givecoin` `/takecoins` `/clearcoins` `/clearinventory` `/makecode` `/additem` `/removeitem` `/promote` `/demote` `/setlogchannel` `/grantaccess` `/revokeaccess` `/embed`", inline=False)
     embed.set_footer(text="Launchly Bot 🚀")
     await interaction.response.send_message(embed=embed)
 
