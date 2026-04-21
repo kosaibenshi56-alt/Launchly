@@ -525,11 +525,20 @@ async def shop(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 @tree.command(name="buy", description="Buy an item from the shop")
-async def buy(interaction: discord.Interaction, item_id: str):
+@app_commands.choices(item_id=[
+    app_commands.Choice(name="100m Brainrot - 700 🪙", value="100m_brainrot"),
+    app_commands.Choice(name="125m Brainrot - 1000 🪙", value="125m_brainrot"),
+    app_commands.Choice(name="150m Brainrot - 1500 🪙", value="150m_brainrot"),
+    app_commands.Choice(name="175m Brainrot - 1750 🪙", value="175m_brainrot"),
+    app_commands.Choice(name="200m Brainrot - 2000 🪙", value="200m_brainrot"),
+    app_commands.Choice(name="200m+ Brainrot - 2500 🪙", value="200m_plus_brainrot"),
+    app_commands.Choice(name="Rare Brainrot - 4000 🪙", value="rare_brainrot"),
+])
+async def buy(interaction: discord.Interaction, item_id: app_commands.Choice[str]):
     data = load_data()
     custom_items = data.get("custom_shop_items", [])
     all_items = SHOP_ITEMS + custom_items
-    item = next((i for i in all_items if i["id"] == item_id), None)
+    item = next((i for i in all_items if i["id"] == item_id.value), None)
     if not item:
         await interaction.response.send_message("❌ Item not found!", ephemeral=True)
         return
@@ -656,7 +665,7 @@ async def claim(interaction: discord.Interaction, item_index: int):
     item = items[item_index]
     claims_channel = discord.utils.get(interaction.guild.text_channels, name=CLAIMS_CHANNEL)
     if not claims_channel:
-        await interaction.response.send_message("❌ Claims channel not found! Please create it first.", ephemeral=True)
+        await interaction.response.send_message("❌ Claims channel not found!", ephemeral=True)
         return
     embed = discord.Embed(title="🎟️ New Claim Request", color=discord.Color.orange())
     embed.add_field(name="User", value=interaction.user.mention, inline=False)
