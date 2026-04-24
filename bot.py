@@ -53,6 +53,7 @@ def remove_coins(data, user_id, amount):
 OWNER = ["Owner"]
 CO_OWNER = ["Owner", "Co Owner"]
 EMBED_ROLES = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager"]
+REMOVE_VOUCH_ROLES = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager", "Head Manager"]
 MANAGER = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager", "Head Manager", "Senior Manager", "Manager", "Trial Manager"]
 ADMIN = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager", "Head Manager", "Senior Manager", "Manager", "Trial Manager", "Chief Admin", "Head Admin", "Senior Admin", "Admin", "Trial Admin"]
 
@@ -75,7 +76,8 @@ SHOP_ITEMS = [
     {"id": "rare_brainrot", "name": "Rare Brainrot", "price": 4000},
 ]
 
-CLAIMS_CHANNEL = "📂｜𝒄𝒍𝒂𝒊𝒎-𝒓𝒆𝒒𝒖𝒆𝒔𝒕𝒔"
+CLAIMS_CHANNEL = "📂｜𝑪𝒍𝒂𝒊𝒎 𝑹𝒆𝒒𝒖𝒆𝒔𝒕 𝑳𝒐𝒈𝒔"
+REMOVE_VOUCH_LOG = "📂｜𝑹𝒆𝒎𝒐𝒗𝒆 𝑽𝒐𝒖𝒄𝒉𝒆𝒔 𝑳𝒐𝒈𝒔"
 
 # ============ EVENTS ============
 
@@ -122,7 +124,7 @@ async def on_member_join(member):
             break
     save_data(data)
 
-# ============ CLAIM BUTTON ============
+# ============ BUTTONS ============
 
 class ClaimButton(discord.ui.View):
     def __init__(self, claimer: discord.Member, item_name: str):
@@ -155,6 +157,22 @@ class ClaimButton(discord.ui.View):
         button.disabled = True
         await interaction.response.edit_message(view=self)
         await interaction.followup.send(f"✅ Ticket opened! {ticket_channel.mention}", ephemeral=True)
+
+class VouchListButton(discord.ui.View):
+    def __init__(self, member: discord.Member, vouchers: list):
+        super().__init__(timeout=60)
+        self.member = member
+        self.vouchers = vouchers
+
+    @discord.ui.button(label="Show List", style=discord.ButtonStyle.blurple, emoji="📋")
+    async def show_list(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.vouchers:
+            await interaction.response.send_message("❌ No vouches found!", ephemeral=True)
+            return
+        list_text = "\n".join([f"{i+1}. <@{v}>" for i, v in enumerate(self.vouchers)])
+        embed = discord.Embed(title=f"📋 {self.member.display_name}'s Vouch List", color=discord.Color.gold())
+        embed.description = list_text
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # ============ MODERATION ============
 
@@ -742,14 +760,63 @@ async def vouch(interaction: discord.Interaction, member: discord.Member):
         data["vouches"] = {}
     user_id = str(member.id)
     if user_id not in data["vouches"]:
-        data["vouches"][user_id] = 0
-    data["vouches"][user_id] += 1
+        data["vouches"][user_id] = {"count": 0, "vouchers": []}
+    if isinstance(data["vouches"][user_id], int):
+        data["vouches"][user_id] = {"count": data["vouches"][user_id], "vouchers": []}
+    data["vouches"][user_id]["count"] += 1
+    data["vouches"][user_id]["vouchers"].append(str(interaction.user.id))
     save_data(data)
-    total = data["vouches"][user_id]
+    total = data["vouches"][user_id]["count"]
     embed = discord.Embed(title="🌟 Vouch", color=discord.Color.gold())
     embed.add_field(name="Vouched By", value=interaction.user.mention, inline=False)
     embed.add_field(name="Vouched For", value=member.mention, inline=False)
     embed.add_field(name="Total Vouches", value=f"{total} 🌟", inline=False)
+    await interaction.response.send_message(embed=embed)
+
+@tree.command(name="show-vouches", description="Show your vouches")
+async def show_vouches(interaction: discord.Interaction, member: discord.Member = None):
+    member = member or interaction.user
+    data = load_data()
+    user_id = str(member.id)
+    vouch_data = data.get("vouches", {}).get(user_id, {"count": 0, "vouchers": []})
+    if isinstance(vouch_data, int):
+        vouch_data = {"count": vouch_data, "vouchers": []}
+    total = vouch_data["count"]
+    vouchers = vouch_data["vouchers"]
+    embed = discord.Embed(title=f"⭐ {member.display_name}'s Vouches", color=discord.Color.gold())
+    embed.add_field(name="Total Vouches", value=f"{total} 🌟", inline=False)
+    view = VouchListButton(member=member, vouchers=vouchers)
+    await interaction.response.send_message(embed=embed, view=view)
+
+@tree.command(name="remove-vouch", description="Remove a vouch from a member")
+async def remove_vouch(interaction: discord.Interaction, member: discord.Member):
+    if not has_role(interaction, REMOVE_VOUCH_ROLES):
+        await interaction.response.send_message("❌ You don't have permission!", ephemeral=True)
+        return
+    data = load_data()
+    user_id = str(member.id)
+    if "vouches" not in data or user_id not in data["vouches"]:
+        await interaction.response.send_message(f"❌ {member.mention} has no vouches!", ephemeral=True)
+        return
+    if isinstance(data["vouches"][user_id], int):
+        data["vouches"][user_id] = {"count": data["vouches"][user_id], "vouchers": []}
+    if data["vouches"][user_id]["count"] <= 0:
+        await interaction.response.send_message(f"❌ {member.mention} has no vouches!", ephemeral=True)
+        return
+    data["vouches"][user_id]["count"] -= 1
+    if data["vouches"][user_id]["vouchers"]:
+        data["vouches"][user_id]["vouchers"].pop()
+    save_data(data)
+    log_channel = discord.utils.get(interaction.guild.text_channels, name=REMOVE_VOUCH_LOG)
+    if log_channel:
+        log_embed = discord.Embed(title="🗑️ Vouch Removed", color=discord.Color.red())
+        log_embed.add_field(name="Member", value=member.mention, inline=False)
+        log_embed.add_field(name="Removed By", value=interaction.user.mention, inline=False)
+        log_embed.add_field(name="Remaining Vouches", value=str(data["vouches"][user_id]["count"]), inline=False)
+        await log_channel.send(embed=log_embed)
+    embed = discord.Embed(title="✅ Vouch Removed", color=discord.Color.green())
+    embed.add_field(name="Member", value=member.mention, inline=False)
+    embed.add_field(name="Remaining Vouches", value=str(data["vouches"][user_id]["count"]), inline=False)
     await interaction.response.send_message(embed=embed)
 
 # ============ EMBED ============
@@ -773,26 +840,10 @@ async def embed_command(interaction: discord.Interaction, color: str, message: s
 @tree.command(name="help-coinflip", description="Learn how to use the coinflip command")
 async def help_coinflip(interaction: discord.Interaction):
     embed = discord.Embed(title="🪙 Coinflip Guide", color=discord.Color.gold())
-    embed.add_field(
-        name="Step 1 — Place your bet",
-        value="Place the amount of coins from your balance in the command. You can choose how many — no minimum and no maximum!",
-        inline=False
-    )
-    embed.add_field(
-        name="Step 2 — Choose your side",
-        value="Choose the side you want to bet on. There are only two options: **Heads** or **Tails**.",
-        inline=False
-    )
-    embed.add_field(
-        name="Step 3 — See the result",
-        value="After you choose a side press Enter and look at the message the bot sent you.\n\n✅ **You Won!** — The amount you betted will be doubled and added to your balance.\n❌ **You Lost!** — The amount you betted will be removed from your balance.",
-        inline=False
-    )
-    embed.add_field(
-        name="❓ Still confused?",
-        value="Make a support ticket and our staff will help you out!",
-        inline=False
-    )
+    embed.add_field(name="Step 1 — Place your bet", value="Place the amount of coins from your balance in the command. You can choose how many — no minimum and no maximum!", inline=False)
+    embed.add_field(name="Step 2 — Choose your side", value="Choose the side you want to bet on. There are only two options: **Heads** or **Tails**.", inline=False)
+    embed.add_field(name="Step 3 — See the result", value="After you choose a side press Enter and look at the message the bot sent you.\n\n✅ **You Won!** — The amount you betted will be doubled and added to your balance.\n❌ **You Lost!** — The amount you betted will be removed from your balance.", inline=False)
+    embed.add_field(name="❓ Still confused?", value="Make a support ticket and our staff will help you out!", inline=False)
     embed.set_footer(text="Launchly Bot 🚀")
     await interaction.response.send_message(embed=embed)
 
@@ -803,10 +854,10 @@ async def help(interaction: discord.Interaction):
     embed = discord.Embed(title="📖 Launchly Commands", color=discord.Color.blurple())
     embed.add_field(name="🛡️ Moderation", value="`/kick` `/ban` `/unban` `/mute` `/unmute` `/warn` `/unwarn` `/clearwarns` `/lock` `/unlock` `/lockall` `/unlockall` `/slowmode` `/changenickname`", inline=False)
     embed.add_field(name="🪙 Economy", value="`/balance` `/shop` `/buy` `/inventory` `/coinflip` `/usecode`", inline=False)
-    embed.add_field(name="⭐ Social", value="`/vouch`", inline=False)
+    embed.add_field(name="⭐ Social", value="`/vouch` `/show-vouches`", inline=False)
     embed.add_field(name="🎟️ Tickets", value="`/claim` `/close`", inline=False)
     embed.add_field(name="❓ Help", value="`/help-coinflip`", inline=False)
-    embed.add_field(name="👑 Staff Only", value="`/givecoin` `/takecoins` `/clearcoins` `/clearinventory` `/makecode` `/additem` `/removeitem` `/promote` `/demote` `/setlogchannel` `/grantaccess` `/revokeaccess` `/embed`", inline=False)
+    embed.add_field(name="👑 Staff Only", value="`/givecoin` `/takecoins` `/clearcoins` `/clearinventory` `/makecode` `/additem` `/removeitem` `/promote` `/demote` `/setlogchannel` `/grantaccess` `/revokeaccess` `/embed` `/remove-vouch`", inline=False)
     embed.set_footer(text="Launchly Bot 🚀")
     await interaction.response.send_message(embed=embed)
 
