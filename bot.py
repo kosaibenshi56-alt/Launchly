@@ -807,7 +807,7 @@ async def remove_vouch(interaction: discord.Interaction, member: discord.Member)
     if data["vouches"][user_id]["vouchers"]:
         data["vouches"][user_id]["vouchers"].pop()
     save_data(data)
-    log_channel = discord.utils.get(interaction.guild.text_channels, name=📂｜𝑹𝒆𝒎𝒐𝒗𝒆 𝑽𝒐𝒖𝒄𝒉𝒆𝒔 𝑳𝒐𝒈𝒔)
+    log_channel = discord.utils.get(interaction.guild.text_channels, name=REMOVE_VOUCH_LOG)
     if log_channel:
         log_embed = discord.Embed(title="🗑️ Vouch Removed", color=discord.Color.red())
         log_embed.add_field(name="Member", value=member.mention, inline=False)
