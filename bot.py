@@ -83,7 +83,7 @@ REMOVE_VOUCH_LOG = "📂｜𝑹𝒆𝒎𝒐𝒗𝒆 𝑽𝒐𝒖𝒄𝒉𝒆𝒔
 
 @client.event
 async def on_ready():
-    guild = discord.Object(id=1494815171334635692)
+    guild = discord.Object(id=1483171842251297052)
     tree.copy_global_to(guild=guild)
     try:
         synced = await tree.sync(guild=guild)
