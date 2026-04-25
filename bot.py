@@ -77,7 +77,7 @@ SHOP_ITEMS = [
 ]
 
 CLAIMS_CHANNEL = "📂｜𝑪𝒍𝒂𝒊𝒎 𝑹𝒆𝒒𝒖𝒆𝒔𝒕 𝑳𝒐𝒈𝒔"
-REMOVE_VOUCH_LOG = "📂｜𝑹𝒆𝒎𝒐𝒗𝒆 𝑽𝒐𝒖𝒄𝒉𝒆𝒔 𝑳𝒐𝒈𝒔"
+REMOVE_VOUCH_LOG = "📂｜𝑹𝒆𝒎𝒐𝒗𝒆-𝑽𝒐𝒖𝒄𝒉𝒆𝒔-𝑳𝒐𝒈𝒔"
 
 # ============ EVENTS ============
 
