@@ -807,17 +807,24 @@ async def remove_vouch(interaction: discord.Interaction, member: discord.Member)
     if data["vouches"][user_id]["vouchers"]:
         data["vouches"][user_id]["vouchers"].pop()
     save_data(data)
+    
+    await interaction.response.send_message("✅ Checking logs...", ephemeral=True)
+    
     log_channel = discord.utils.get(interaction.guild.text_channels, name=REMOVE_VOUCH_LOG)
-    if log_channel:
-        log_embed = discord.Embed(title="🗑️ Vouch Removed", color=discord.Color.red())
-        log_embed.add_field(name="Member", value=member.mention, inline=False)
-        log_embed.add_field(name="Removed By", value=interaction.user.mention, inline=False)
-        log_embed.add_field(name="Remaining Vouches", value=str(data["vouches"][user_id]["count"]), inline=False)
-        await log_channel.send(embed=log_embed)
+    if not log_channel:
+        await interaction.followup.send(f"⚠️ Log channel not found! Looking for: `{REMOVE_VOUCH_LOG}`", ephemeral=True)
+        return
+    
+    log_embed = discord.Embed(title="🗑️ Vouch Removed", color=discord.Color.red())
+    log_embed.add_field(name="Member", value=member.mention, inline=False)
+    log_embed.add_field(name="Removed By", value=interaction.user.mention, inline=False)
+    log_embed.add_field(name="Remaining Vouches", value=str(data["vouches"][user_id]["count"]), inline=False)
+    await log_channel.send(embed=log_embed)
+    
     embed = discord.Embed(title="✅ Vouch Removed", color=discord.Color.green())
     embed.add_field(name="Member", value=member.mention, inline=False)
     embed.add_field(name="Remaining Vouches", value=str(data["vouches"][user_id]["count"]), inline=False)
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 # ============ EMBED ============
 
