@@ -78,12 +78,13 @@ SHOP_ITEMS = [
 
 CLAIMS_CHANNEL = "📂｜𝑪𝒍𝒂𝒊𝒎 𝑹𝒆𝒒𝒖𝒆𝒔𝒕 𝑳𝒐𝒈𝒔"
 REMOVE_VOUCH_LOG = "📂｜𝑹𝒆𝒎𝒐𝒗𝒆-𝑽𝒐𝒖𝒄𝒉𝒆𝒔-𝑳𝒐𝒈𝒔"
+VOUCH_LOG = "📂｜𝑽𝒐𝒖𝒄𝒉𝒆𝒔-𝑳𝒐𝒈𝒔"
 
 # ============ EVENTS ============
 
 @client.event
 async def on_ready():
-    guild = discord.Object(id=1483171842251297052)
+    guild = discord.Object(id=1494815171334635692)
     tree.copy_global_to(guild=guild)
     try:
         synced = await tree.sync(guild=guild)
@@ -750,28 +751,70 @@ async def usecode(interaction: discord.Interaction, code: str):
 
 # ============ VOUCH ============
 
-@tree.command(name="vouch", description="Vouch for a member")
+@tree.command(name="vouch", description="Vouch for a member with proof")
 async def vouch(interaction: discord.Interaction, member: discord.Member):
     if member.id == interaction.user.id:
         await interaction.response.send_message("❌ You can't vouch for yourself!", ephemeral=True)
         return
-    data = load_data()
-    if "vouches" not in data:
-        data["vouches"] = {}
-    user_id = str(member.id)
-    if user_id not in data["vouches"]:
-        data["vouches"][user_id] = {"count": 0, "vouchers": []}
-    if isinstance(data["vouches"][user_id], int):
-        data["vouches"][user_id] = {"count": data["vouches"][user_id], "vouchers": []}
-    data["vouches"][user_id]["count"] += 1
-    data["vouches"][user_id]["vouchers"].append(str(interaction.user.id))
-    save_data(data)
-    total = data["vouches"][user_id]["count"]
-    embed = discord.Embed(title="🌟 Vouch", color=discord.Color.gold())
-    embed.add_field(name="Vouched By", value=interaction.user.mention, inline=False)
-    embed.add_field(name="Vouched For", value=member.mention, inline=False)
-    embed.add_field(name="Total Vouches", value=f"{total} 🌟", inline=False)
-    await interaction.response.send_message(embed=embed)
+    
+    await interaction.response.send_message("✅ Check your DMs for the vouch proof submission!", ephemeral=True)
+    
+    try:
+        dm_embed = discord.Embed(title="🌟 Vouch Proof Submission", color=discord.Color.gold())
+        dm_embed.add_field(name="Member to Vouch", value=member.mention, inline=False)
+        dm_embed.add_field(name="Instructions", value="Please upload a screenshot showing proof of trade/interaction (required)", inline=False)
+        await interaction.user.send(embed=dm_embed)
+        
+        def check(m):
+            return m.author == interaction.user and isinstance(m.channel, discord.DMChannel)
+        
+        proof_msg = await client.wait_for('message', check=check, timeout=300)
+        
+        if not proof_msg.attachments:
+            await interaction.user.send("❌ No screenshot provided! Vouch cancelled.")
+            return
+        
+        proof_image = proof_msg.attachments[0]
+        
+        desc_embed = discord.Embed(title="🌟 Vouch Proof Submission", color=discord.Color.gold())
+        desc_embed.add_field(name="Step 2", value="Describe the trade/interaction (optional, type 'skip' to skip):", inline=False)
+        await interaction.user.send(embed=desc_embed)
+        
+        try:
+            desc_msg = await client.wait_for('message', check=check, timeout=120)
+            description = desc_msg.content if desc_msg.content.lower() != 'skip' else "No description provided"
+        except asyncio.TimeoutError:
+            description = "No description provided"
+        
+        data = load_data()
+        if "vouches" not in data:
+            data["vouches"] = {}
+        user_id = str(member.id)
+        if user_id not in data["vouches"]:
+            data["vouches"][user_id] = {"count": 0, "vouchers": []}
+        if isinstance(data["vouches"][user_id], int):
+            data["vouches"][user_id] = {"count": data["vouches"][user_id], "vouchers": []}
+        
+        data["vouches"][user_id]["count"] += 1
+        data["vouches"][user_id]["vouchers"].append(str(interaction.user.id))
+        save_data(data)
+        
+        log_channel = discord.utils.get(interaction.guild.text_channels, name=VOUCH_LOG)
+        if log_channel:
+            log_embed = discord.Embed(title="🌟 New Vouch", color=discord.Color.gold())
+            log_embed.add_field(name="Member", value=member.mention, inline=False)
+            log_embed.add_field(name="Vouched By", value=interaction.user.mention, inline=False)
+            log_embed.add_field(name="Description", value=description, inline=False)
+            log_embed.add_field(name="Total Vouches", value=str(data["vouches"][user_id]["count"]), inline=False)
+            await log_channel.send(embed=log_embed, file=await proof_image.to_file())
+        
+        await interaction.user.send(f"✅ Vouch submitted successfully! {member.mention} now has {data['vouches'][user_id]['count']} 🌟")
+        
+    except asyncio.TimeoutError:
+        await interaction.user.send("❌ Vouch submission timed out!")
+    except Exception as e:
+        print(f"Error in vouch command: {e}")
+        await interaction.user.send(f"❌ An error occurred: {e}")
 
 @tree.command(name="show-vouches", description="Show your vouches")
 async def show_vouches(interaction: discord.Interaction, member: discord.Member = None):
