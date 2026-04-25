@@ -54,6 +54,7 @@ OWNER = ["Owner"]
 CO_OWNER = ["Owner", "Co Owner"]
 EMBED_ROLES = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager"]
 REMOVE_VOUCH_ROLES = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager", "Head Manager"]
+VOUCH_ACCEPT_ROLES = ["Owner", "Co Owner", "Trial Co Owner", "🌟 | Vouch Accepters"]
 MANAGER = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager", "Head Manager", "Senior Manager", "Manager", "Trial Manager"]
 ADMIN = ["Owner", "Co Owner", "Trial Co Owner", "Chief Manager", "Head Manager", "Senior Manager", "Manager", "Trial Manager", "Chief Admin", "Head Admin", "Senior Admin", "Admin", "Trial Admin"]
 
@@ -174,6 +175,72 @@ class VouchListButton(discord.ui.View):
         embed = discord.Embed(title=f"📋 {self.member.display_name}'s Vouch List", color=discord.Color.gold())
         embed.description = list_text
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+class VouchAcceptButton(discord.ui.View):
+    def __init__(self, guild: discord.Guild, member_id: int, voucher_id: int, description: str, proof_url: str):
+        super().__init__(timeout=None)
+        self.guild = guild
+        self.member_id = member_id
+        self.voucher_id = voucher_id
+        self.description = description
+        self.proof_url = proof_url
+
+    @discord.ui.button(label="Accept", style=discord.ButtonStyle.green, emoji="✅")
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not has_role(interaction, VOUCH_ACCEPT_ROLES):
+            await interaction.response.send_message("❌ You don't have permission!", ephemeral=True)
+            return
+        
+        data = load_data()
+        member_id_str = str(self.member_id)
+        
+        if "vouches" not in data:
+            data["vouches"] = {}
+        if member_id_str not in data["vouches"]:
+            data["vouches"][member_id_str] = {"count": 0, "vouchers": []}
+        if isinstance(data["vouches"][member_id_str], int):
+            data["vouches"][member_id_str] = {"count": data["vouches"][member_id_str], "vouchers": []}
+        
+        data["vouches"][member_id_str]["count"] += 1
+        data["vouches"][member_id_str]["vouchers"].append(str(self.voucher_id))
+        save_data(data)
+        
+        member = self.guild.get_member(self.member_id)
+        voucher = self.guild.get_member(self.voucher_id)
+        
+        button.disabled = True
+        await interaction.response.edit_message(view=self)
+        
+        await interaction.followup.send(f"✅ Vouch accepted! {member.mention if member else 'Member'} now has {data['vouches'][member_id_str]['count']} 🌟", ephemeral=True)
+        
+        try:
+            voucher_user = await client.fetch_user(self.voucher_id)
+            dm_embed = discord.Embed(title="✅ Vouch Accepted", color=discord.Color.green())
+            dm_embed.add_field(name="Member Vouched", value=f"{member.mention if member else 'Unknown'}", inline=False)
+            dm_embed.add_field(name="Your Vouch was Accepted!", value="Thank you for vouching!", inline=False)
+            await voucher_user.send(embed=dm_embed)
+        except:
+            pass
+
+    @discord.ui.button(label="Reject", style=discord.ButtonStyle.red, emoji="❌")
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not has_role(interaction, VOUCH_ACCEPT_ROLES):
+            await interaction.response.send_message("❌ You don't have permission!", ephemeral=True)
+            return
+        
+        button.disabled = True
+        await interaction.response.edit_message(view=self)
+        
+        try:
+            voucher_user = await client.fetch_user(self.voucher_id)
+            dm_embed = discord.Embed(title="❌ Vouch Rejected", color=discord.Color.red())
+            dm_embed.add_field(name="Reason", value="Your vouch submission was rejected by staff.", inline=False)
+            dm_embed.add_field(name="Description Provided", value=self.description, inline=False)
+            await voucher_user.send(embed=dm_embed)
+        except:
+            pass
+        
+        await interaction.followup.send(f"✅ Vouch rejected!", ephemeral=True)
 
 # ============ MODERATION ============
 
@@ -537,10 +604,23 @@ async def clearcoins(interaction: discord.Interaction, member: discord.Member):
 async def shop(interaction: discord.Interaction):
     data = load_data()
     custom_items = data.get("custom_shop_items", [])
-    all_items = SHOP_ITEMS + custom_items
+    categories = data.get("shop_categories", {})
+    
     embed = discord.Embed(title="🛒 Launchly Shop", color=discord.Color.blue())
-    for item in all_items:
-        embed.add_field(name=item["name"], value=f"Price: {item['price']} 🪙 | ID: `{item['id']}`", inline=False)
+    
+    if not categories and not custom_items:
+        embed.description = "No items in shop!"
+        await interaction.response.send_message(embed=embed)
+        return
+    
+    for category_name, items in categories.items():
+        items_text = "\n".join([f"• {item['name']} - {item['price']} 🪙 | `{item['id']}`" for item in items])
+        embed.add_field(name=f"**{category_name}**", value=items_text, inline=False)
+    
+    if custom_items:
+        custom_text = "\n".join([f"• {item['name']} - {item['price']} 🪙 | `{item['id']}`" for item in custom_items])
+        embed.add_field(name="**Other**", value=custom_text, inline=False)
+    
     await interaction.response.send_message(embed=embed)
 
 @tree.command(name="buy", description="Buy an item from the shop")
@@ -556,11 +636,21 @@ async def shop(interaction: discord.Interaction):
 async def buy(interaction: discord.Interaction, item_id: app_commands.Choice[str]):
     data = load_data()
     custom_items = data.get("custom_shop_items", [])
-    all_items = SHOP_ITEMS + custom_items
-    item = next((i for i in all_items if i["id"] == item_id.value), None)
+    categories = data.get("shop_categories", {})
+    
+    item = None
+    for cat_items in categories.values():
+        item = next((i for i in cat_items if i["id"] == item_id.value), None)
+        if item:
+            break
+    
+    if not item:
+        item = next((i for i in SHOP_ITEMS + custom_items if i["id"] == item_id.value), None)
+    
     if not item:
         await interaction.response.send_message("❌ Item not found!", ephemeral=True)
         return
+    
     user_id = str(interaction.user.id)
     coins = get_balance(data, interaction.user.id)
     if coins < item["price"]:
@@ -639,6 +729,50 @@ async def coinflip(interaction: discord.Interaction, amount: int, choice: app_co
         embed.add_field(name="Result", value=f"**{result.capitalize()}**", inline=True)
         embed.add_field(name="Lost", value=f"-{amount} 🪙", inline=True)
         embed.add_field(name="New Balance", value=f"{new_balance} 🪙", inline=False)
+    await interaction.response.send_message(embed=embed)
+
+@tree.command(name="addcategory", description="Add a shop category")
+async def addcategory(interaction: discord.Interaction, category_name: str):
+    if not has_role(interaction, CO_OWNER):
+        await interaction.response.send_message("❌ You don't have permission!", ephemeral=True)
+        return
+    
+    data = load_data()
+    if "shop_categories" not in data:
+        data["shop_categories"] = {}
+    
+    if category_name in data["shop_categories"]:
+        await interaction.response.send_message(f"❌ Category '{category_name}' already exists!", ephemeral=True)
+        return
+    
+    data["shop_categories"][category_name] = []
+    save_data(data)
+    
+    embed = discord.Embed(title="✅ Category Added", color=discord.Color.green())
+    embed.add_field(name="Category", value=category_name, inline=False)
+    await interaction.response.send_message(embed=embed)
+
+@tree.command(name="additemcategory", description="Add an item to a shop category")
+async def additemcategory(interaction: discord.Interaction, category_name: str, item_id: str, item_name: str, price: int):
+    if not has_role(interaction, CO_OWNER):
+        await interaction.response.send_message("❌ You don't have permission!", ephemeral=True)
+        return
+    
+    data = load_data()
+    if "shop_categories" not in data:
+        data["shop_categories"] = {}
+    
+    if category_name not in data["shop_categories"]:
+        await interaction.response.send_message(f"❌ Category '{category_name}' doesn't exist!", ephemeral=True)
+        return
+    
+    data["shop_categories"][category_name].append({"id": item_id, "name": item_name, "price": price})
+    save_data(data)
+    
+    embed = discord.Embed(title="✅ Item Added to Category", color=discord.Color.green())
+    embed.add_field(name="Category", value=category_name, inline=False)
+    embed.add_field(name="Item", value=item_name, inline=False)
+    embed.add_field(name="Price", value=f"{price} 🪙", inline=False)
     await interaction.response.send_message(embed=embed)
 
 @tree.command(name="additem", description="Add an item to the shop")
@@ -786,29 +920,23 @@ async def vouch(interaction: discord.Interaction, member: discord.Member):
         except asyncio.TimeoutError:
             description = "No description provided"
         
-        data = load_data()
-        if "vouches" not in data:
-            data["vouches"] = {}
-        user_id = str(member.id)
-        if user_id not in data["vouches"]:
-            data["vouches"][user_id] = {"count": 0, "vouchers": []}
-        if isinstance(data["vouches"][user_id], int):
-            data["vouches"][user_id] = {"count": data["vouches"][user_id], "vouchers": []}
-        
-        data["vouches"][user_id]["count"] += 1
-        data["vouches"][user_id]["vouchers"].append(str(interaction.user.id))
-        save_data(data)
-        
         log_channel = discord.utils.get(interaction.guild.text_channels, name=VOUCH_LOG)
         if log_channel:
-            log_embed = discord.Embed(title="🌟 New Vouch", color=discord.Color.gold())
-            log_embed.add_field(name="Member", value=member.mention, inline=False)
+            log_embed = discord.Embed(title="🌟 New Vouch (Pending Approval)", color=discord.Color.gold())
+            log_embed.add_field(name="Member to Vouch", value=member.mention, inline=False)
             log_embed.add_field(name="Vouched By", value=interaction.user.mention, inline=False)
             log_embed.add_field(name="Description", value=description, inline=False)
-            log_embed.add_field(name="Total Vouches", value=str(data["vouches"][user_id]["count"]), inline=False)
-            await log_channel.send(embed=log_embed, file=await proof_image.to_file())
+            
+            view = VouchAcceptButton(
+                guild=interaction.guild,
+                member_id=member.id,
+                voucher_id=interaction.user.id,
+                description=description,
+                proof_url=proof_image.url
+            )
+            await log_channel.send(embed=log_embed, file=await proof_image.to_file(), view=view)
         
-        await interaction.user.send(f"✅ Vouch submitted successfully! {member.mention} now has {data['vouches'][user_id]['count']} 🌟")
+        await interaction.user.send(f"✅ Vouch submitted! Waiting for staff approval...")
         
     except asyncio.TimeoutError:
         await interaction.user.send("❌ Vouch submission timed out!")
@@ -907,7 +1035,7 @@ async def help(interaction: discord.Interaction):
     embed.add_field(name="⭐ Social", value="`/vouch` `/show-vouches`", inline=False)
     embed.add_field(name="🎟️ Tickets", value="`/claim` `/close`", inline=False)
     embed.add_field(name="❓ Help", value="`/help-coinflip`", inline=False)
-    embed.add_field(name="👑 Staff Only", value="`/givecoin` `/takecoins` `/clearcoins` `/clearinventory` `/makecode` `/additem` `/removeitem` `/promote` `/demote` `/setlogchannel` `/grantaccess` `/revokeaccess` `/embed` `/remove-vouch`", inline=False)
+    embed.add_field(name="👑 Staff Only", value="`/givecoin` `/takecoins` `/clearcoins` `/clearinventory` `/makecode` `/additem` `/removeitem` `/promote` `/demote` `/setlogchannel` `/grantaccess` `/revokeaccess` `/embed` `/remove-vouch` `/addcategory` `/additemcategory`", inline=False)
     embed.set_footer(text="Launchly Bot 🚀")
     await interaction.response.send_message(embed=embed)
 
